@@ -1238,53 +1238,83 @@ function createDepartmentChart() {
 const ctx = document.getElementById('departmentChart').getContext('2d');
 if (charts.departmentChart) charts.departmentChart.destroy();
 
+// Target default untuk departemen yang sudah dikenal
 const departmentTargets = {
 'CSR': 8, 'SHE': 6, 'PIM': 4, 'PERFORMANCE': 3,
 'PRODUKSI SPS 3': 5, 'TEKNIK': 4, 'QA': 4, 'PRODUKSI SPS 1': 3
 };
 
+// Hitung actual count untuk SEMUA departemen yang ada di data
 const deptCounts = {};
 filteredData.forEach(item => {
 const dept = item.dept || 'Unknown';
-if (dept !== 'Unknown') {
+if (dept !== 'Unknown' && dept.trim() !== '') {
 deptCounts[dept] = (deptCounts[dept] || 0) + 1;
 }
 });
 
 const deptAchievements = [];
-Object.keys(departmentTargets).forEach(dept => {
+
+// Loop melalui SEMUA departemen yang ditemukan di data
+Object.keys(deptCounts).forEach(dept => {
 const actual = deptCounts[dept] || 0;
-const target = departmentTargets[dept];
-const achievement = Math.min((actual / target) * 100, 150);
+// Jika departemen tidak ada di target list, gunakan target default 3
+const target = departmentTargets[dept] || 3;
+const achievement = Math.min((actual / target) * 100, 200); // Max 200% untuk display
+const actualPercentage = (actual / target) * 100;
 deptAchievements.push({
 department: dept,
 achievement: achievement,
+actualPercentage: actualPercentage,
 actual: actual,
 target: target
 });
 });
 
-deptAchievements.sort((a, b) => b.achievement - a.achievement);
-const topDepartments = deptAchievements.slice(0, 6);
+// Juga tambahkan departemen yang ada di target tapi belum ada di data
+Object.keys(departmentTargets).forEach(dept => {
+if (!deptCounts[dept]) {
+deptAchievements.push({
+department: dept,
+achievement: 0,
+actualPercentage: 0,
+actual: 0,
+target: departmentTargets[dept]
+});
+}
+});
 
-const colors = topDepartments.map(dept => {
-if (dept.achievement >= 100) return '#22c55e';
-else if (dept.achievement >= 80) return '#3b82f6';
-else if (dept.achievement >= 60) return '#f59e0b';
-else return '#ef4444';
+// Tampilkan SEMUA departemen, diurutkan berdasarkan achievement
+deptAchievements.sort((a, b) => b.actualPercentage - a.actualPercentage);
+const allDepartments = deptAchievements; // Tampilkan semua, tidak di-slice
+
+const colors = allDepartments.map(dept => {
+if (dept.actualPercentage >= 100) return '#22c55e'; // Green untuk 100%+
+else if (dept.actualPercentage >= 80) return '#3b82f6'; // Blue untuk 80-99%
+else if (dept.actualPercentage >= 60) return '#f59e0b'; // Yellow untuk 60-79%
+else if (dept.actualPercentage >= 40) return '#f97316'; // Orange untuk 40-59%
+else return '#ef4444'; // Red untuk <40%
 });
 
 charts.departmentChart = new Chart(ctx, {
 type: 'bar',
 data: {
-labels: topDepartments.map(dept => dept.department),
+labels: allDepartments.map(dept => {
+// Singkat nama departemen untuk tampilan yang lebih baik
+if (dept.department.length > 15) {
+return dept.department.substring(0, 12) + '...';
+} else if (dept.department.length > 10) {
+return dept.department.substring(0, 10) + '..';
+}
+return dept.department;
+}),
 datasets: [{
 label: 'Achievement %',
-data: topDepartments.map(dept => dept.achievement),
+data: allDepartments.map(dept => dept.achievement),
 backgroundColor: colors.map(color => color + 'CC'),
 borderColor: colors,
 borderWidth: 2,
-borderRadius: 6
+borderRadius: 4
 }]
 },
 options: {
@@ -1298,36 +1328,63 @@ titleColor: '#cbd5e1',
 bodyColor: '#cbd5e1',
 callbacks: {
 title: function(context) {
-return topDepartments[context[0].dataIndex].department;
+return allDepartments[context[0].dataIndex].department;
 },
 label: function(context) {
-const dept = topDepartments[context.dataIndex];
+const dept = allDepartments[context.dataIndex];
+const status = dept.actualPercentage >= 100 ? '✅ Target Tercapai' :
+dept.actualPercentage >= 80 ? '🟡 Mendekati Target' : 
+dept.actualPercentage >= 60 ? '🟠 Perlu Perhatian' : 
+dept.actualPercentage >= 40 ? '🟠 Butuh Peningkatan' : '🔴 Perlu Fokus Khusus';
 return [
-`Achievement: ${dept.achievement.toFixed(1)}%`,
+`Achievement: ${dept.actualPercentage.toFixed(1)}%`,
 `Actual: ${dept.actual} laporan`,
-`Target: ${dept.target} laporan`
+`Target: ${dept.target} laporan`,
+status
 ];
 }
+}
+},
+datalabels: {
+anchor: 'end',
+align: 'top',
+color: '#ffffff',
+font: {
+weight: 'bold',
+size: 9
+},
+formatter: (value, context) => {
+const dept = allDepartments[context.dataIndex];
+if (dept.actualPercentage === 0) return '0%';
+return `${dept.actualPercentage.toFixed(0)}%`;
 }
 }
 },
 scales: {
 y: {
 beginAtZero: true,
-max: 150,
+max: 200, // Increased max untuk accommodate lebih banyak departemen
 ticks: {
 color: '#cbd5e1',
-callback: function(value) { return value + '%'; }
+callback: function(value) { return value + '%'; },
+font: { size: 10 }
 },
 grid: { color: 'rgba(148, 163, 184, 0.1)' }
 },
 x: {
-ticks: { color: '#cbd5e1', maxRotation: 45 },
+ticks: { 
+color: '#cbd5e1', 
+maxRotation: 45,
+font: { size: 9 }
+},
 grid: { color: 'rgba(148, 163, 184, 0.1)' }
 }
 }
 }
 });
+
+console.log(`📊 Department chart created with ${allDepartments.length} departments:`, 
+allDepartments.map(d => d.department));
 }
 
 function createMonthlyChart() {
